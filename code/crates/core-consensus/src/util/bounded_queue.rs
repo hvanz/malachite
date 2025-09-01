@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Debug};
 use tracing::warn;
 
 /// A data structure that maintains a queue of values associated with monotonically increasing indices.
@@ -14,7 +14,7 @@ pub struct BoundedQueue<I, T> {
 
 impl<I, T> BoundedQueue<I, T>
 where
-    I: Ord,
+    I: Ord, T: Debug,
 {
     /// Creates a new `BoundedQueue` with the specified capacity.
     pub fn new(capacity: usize) -> Self {
@@ -59,7 +59,7 @@ where
             }
         }
 
-        warn!("Bounded queue is full, no value is inserted");
+        warn!("Bounded queue is full, value {value:?} not inserted");
         false
     }
 
