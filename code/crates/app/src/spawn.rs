@@ -104,7 +104,7 @@ where
     };
 
     // Derive the consensus queue capacity from `sync.parallel_requests` and `sync.batch_size`
-    cfg.queue_capacity = sync_cfg.parallel_requests * sync_cfg.batch_size;
+    cfg.queue_capacity = 2 * sync_cfg.parallel_requests * sync_cfg.batch_size;
 
     Consensus::spawn(
         ctx,
