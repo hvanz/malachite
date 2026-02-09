@@ -6,6 +6,8 @@ use color_eyre::eyre::{bail, Result};
 use tokio::time::Instant;
 use tracing::debug;
 
+use crate::height::fetch_height;
+
 /// Wait for all given nodes to reach a certain consensus height.
 pub(crate) async fn wait_for_height(
     node_urls: Vec<(String, String)>, // (name, metrics_url)
@@ -122,30 +124,4 @@ pub(crate) async fn wait_for_sync(
             bail!("Timeout waiting for nodes to sync");
         }
     }
-}
-
-/// Fetch the current consensus height from a Prometheus metrics endpoint.
-async fn fetch_height(client: &reqwest::Client, url: &str) -> Result<u64> {
-    let body = client.get(url).send().await?.text().await?;
-
-    // Parse the Prometheus text format for the height gauge.
-    // Looking for a line like:
-    //   malachitebft_core_consensus_height 42
-    for line in body.lines() {
-        let line = line.trim();
-        if line.starts_with('#') {
-            continue;
-        }
-        // Match lines that contain the height metric (with or without labels)
-        if line.starts_with("malachitebft_core_consensus_height") {
-            // The value is the last whitespace-separated token
-            if let Some(value_str) = line.rsplit_once(|c: char| c.is_whitespace()) {
-                if let Ok(height) = value_str.1.parse::<f64>() {
-                    return Ok(height as u64);
-                }
-            }
-        }
-    }
-
-    bail!("Height metric not found in Prometheus output")
 }
