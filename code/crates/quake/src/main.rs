@@ -11,6 +11,7 @@ use testnet::Testnet;
 
 mod build;
 mod docker;
+mod height;
 mod manifest;
 mod node;
 mod perturb;
@@ -84,11 +85,24 @@ enum Commands {
         follow: bool,
     },
     /// Show the state of the testnet and metadata
-    Info,
+    Info {
+        #[command(subcommand)]
+        command: Option<InfoSubcommand>,
+    },
     /// Wait for nodes to reach a height or finish syncing
     Wait {
         #[clap(subcommand)]
         command: WaitSubcommand,
+    },
+}
+
+#[derive(Debug, Subcommand, PartialEq)]
+pub(crate) enum InfoSubcommand {
+    /// Show the latest heights of each node (loops until interrupted)
+    Heights {
+        /// Number of rounds to print before exiting (0 for infinite)
+        #[clap(short = 'n', long, default_value = "0")]
+        number: u32,
     },
 }
 
@@ -173,7 +187,7 @@ async fn main() -> Result<()> {
             max_time_off,
         } => testnet.perturb(action, min_time_off, max_time_off).await,
         Commands::Logs { names, follow } => testnet.logs(names, follow),
-        Commands::Info => testnet.info().await,
+        Commands::Info { command } => testnet.info(command).await,
         Commands::Wait { command } => match command {
             WaitSubcommand::Height {
                 height,

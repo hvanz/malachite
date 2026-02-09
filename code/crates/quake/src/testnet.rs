@@ -14,6 +14,7 @@ use crate::node::NodesMetadata;
 use crate::perturb::Perturbation;
 use crate::setup;
 use crate::wait;
+use crate::InfoSubcommand;
 
 const QUAKE_DIR: &str = ".quake";
 const LAST_MANIFEST_FILENAME: &str = ".last_manifest";
@@ -271,37 +272,34 @@ impl Testnet {
     }
 
     /// Show testnet state and metadata.
-    pub async fn info(&self) -> Result<()> {
-        if !self.dir.exists() {
-            bail!("Testnet directory does not exist: {}", self.dir.display());
-        }
+    pub async fn info(&self, command: Option<InfoSubcommand>) -> Result<()> {
+        let node_urls = self.all_metrics_urls();
 
-        println!("Testnet: {}", self.manifest.name);
-        println!("Image: {}", self.manifest.image);
-        println!("Directory: {}", self.dir.display());
-        println!();
+        match command {
+            None => {
+                println!("Testnet: {}", self.manifest.name);
+                println!("Image: {}", self.manifest.image);
+                println!("Directory: {}", self.dir.display());
+                println!();
 
-        println!("Nodes:");
-        print!("{}", self.nodes_metadata);
-        println!();
+                println!("Nodes:");
+                print!("{}", self.nodes_metadata);
+                println!();
 
-        // Show current heights
-        println!("Heights:");
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(3))
-            .build()?;
+                println!("Heights:");
+                let max_name_len = self.nodes_metadata.max_name_len();
+                for (name, height_str) in crate::height::latest_heights(&node_urls).await? {
+                    println!("  {name:<max_name_len$} = {height_str}");
+                }
 
-        for meta in self.nodes_metadata.values() {
-            let url = format!("{}/metrics", meta.host_metrics_url());
-            match fetch_height_from_url(&client, &url).await {
-                Ok(h) => println!("  {} = {h}", meta.name),
-                Err(_) => println!("  {} = (unavailable)", meta.name),
+                println!();
+                println!("Monitoring:");
+                self.print_monitoring_info();
+            }
+            Some(InfoSubcommand::Heights { number }) => {
+                crate::height::loop_print_latest_heights(&node_urls, number).await?;
             }
         }
-
-        println!();
-        println!("Monitoring:");
-        self.print_monitoring_info();
 
         Ok(())
     }
@@ -351,6 +349,15 @@ impl Testnet {
             .collect()
     }
 
+    /// Get the metrics URLs for all nodes.
+    fn all_metrics_urls(&self) -> Vec<(String, String)> {
+        self.nodes_metadata
+            .values()
+            .iter()
+            .map(|m| (m.name.clone(), m.host_metrics_url()))
+            .collect()
+    }
+
     // --- Monitoring ---
 
     /// Start monitoring services (Prometheus + Grafana).
@@ -381,23 +388,4 @@ impl Testnet {
         println!("  Prometheus: http://localhost:9090");
         println!("  Grafana:    http://localhost:3000");
     }
-}
-
-/// Fetch height from a Prometheus metrics URL (used by info command).
-async fn fetch_height_from_url(client: &reqwest::Client, url: &str) -> Result<u64> {
-    let body = client.get(url).send().await?.text().await?;
-    for line in body.lines() {
-        let line = line.trim();
-        if line.starts_with('#') {
-            continue;
-        }
-        if line.starts_with("malachitebft_core_consensus_height") {
-            if let Some(value_str) = line.rsplit_once(|c: char| c.is_whitespace()) {
-                if let Ok(height) = value_str.1.parse::<f64>() {
-                    return Ok(height as u64);
-                }
-            }
-        }
-    }
-    bail!("Height metric not found")
 }

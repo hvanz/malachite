@@ -79,6 +79,11 @@ impl NodesMetadata {
         self.0.get(name)
     }
 
+    /// Maximum node name length (for aligned output).
+    pub fn max_name_len(&self) -> usize {
+        self.0.keys().map(|k| k.len()).max().unwrap_or(12)
+    }
+
     /// Expand a list of names (which may include glob wildcards like `val*` or `val*1`)
     /// into concrete node names. `*` matches any sequence of characters.
     pub fn expand_names(&self, names: &[String]) -> Vec<String> {
