@@ -21,3 +21,10 @@ lcov.info
 
 # Vim temporary files
 *.swp
+
+# Environment variables
+.env
+
+# Quake
+.quake/
+ca-certificates.crt

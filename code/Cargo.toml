@@ -37,6 +37,9 @@ members = [
   "crates/starknet/*",
   "crates/starknet/test/mbt",
 
+  # Tools
+  "crates/quake",
+
   # Examples
   "examples/channel",
 ]
