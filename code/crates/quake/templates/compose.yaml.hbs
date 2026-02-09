@@ -1,0 +1,26 @@
+name: malachite_quake
+
+services:
+{{#each nodes}}
+  {{this.name}}:
+    image: {{../image}}
+    container_name: {{this.name}}
+    command: ["start", "--home", "/data"]
+    volumes:
+      - ./{{this.name}}:/data
+    networks:
+      malachite_net:
+        ipv4_address: {{this.ip}}
+    ports:
+      - "{{this.host_p2p_port}}:27000"
+      - "{{this.host_mempool_port}}:28000"
+      - "{{this.host_metrics_port}}:29000"
+    restart: unless-stopped
+{{/each}}
+
+networks:
+  malachite_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

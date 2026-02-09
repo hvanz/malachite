@@ -1,2 +1,4 @@
 target
 scripts
+.quake
+!.quake/ca-certificates.crt

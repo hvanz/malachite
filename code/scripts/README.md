@@ -1,6 +1,10 @@
 # Testnet scripts
 This directory contains scripts that gives you three ways to run local testnet for development purposes.
 
+For Docker-based testnets with richer orchestration (perturbations, height-based
+start ordering, etc.), see [quake](../crates/quake/) -- a manifest-driven CLI
+tool. Run `cargo run -p malachite-quake -- --help` for usage.
+
 In each case, we are going to assume that you run your commands from the `code` folder.
 
 ## Bash
