@@ -12,8 +12,8 @@ workspace = true
 
 [dependencies]
 malachitebft-config        = { workspace = true }
-malachitebft-starknet-host = { workspace = true }
 malachitebft-test          = { workspace = true }
+malachitebft-test-app      = { workspace = true }
 malachitebft-test-cli      = { workspace = true }
 malachitebft-core-types    = { workspace = true }
 

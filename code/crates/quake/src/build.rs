@@ -14,6 +14,7 @@ use crate::docker;
 /// 2. Reads GITHUB_TOKEN from `.env` and passes it as a Docker secret
 /// 3. Builds inside Docker following the same pattern as Dockerfile.malachite
 pub fn build_image(root_dir: &Path, quake_dir: &Path, image: &str) -> Result<()> {
+    let app_bin = "informalsystems-malachitebft-test-app";
     // Step 1: export macOS Keychain certs (includes corporate CAs)
     let ca_cert_path = quake_dir.join("ca-certificates.crt");
     info!("Exporting macOS CA certificates...");
@@ -55,6 +56,8 @@ pub fn build_image(root_dir: &Path, quake_dir: &Path, image: &str) -> Result<()>
         debug!("Passing GITHUB_TOKEN as Docker secret");
     }
     args.extend_from_slice(&[
+        "--build-arg".to_string(),
+        format!("APP_BIN={app_bin}"),
         "-t".to_string(),
         image.to_string(),
         "-f".to_string(),

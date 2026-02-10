@@ -9,13 +9,15 @@ use serde::Serialize;
 use tracing::debug;
 
 use malachitebft_config::*;
-use malachitebft_starknet_host::config::Config;
-use malachitebft_starknet_host::node::{ConfigSource, StarknetNode};
 use malachitebft_test::node::Node;
 use malachitebft_test::traits::{CanMakeGenesis, CanMakePrivateKeyFile};
+use malachitebft_test::{Height, PrivateKey, ValidatorSet};
+
+use malachitebft_test_app::config::Config;
+use malachitebft_test_app::node::App;
 
 use crate::manifest::Manifest;
-use crate::node::{NodeMetadata, NodesMetadata, MEMPOOL_PORT, METRICS_PORT, P2P_PORT};
+use crate::node::{NodeMetadata, NodesMetadata, METRICS_PORT, P2P_PORT};
 
 /// Template data for rendering compose.yaml.hbs.
 #[derive(Serialize)]
@@ -68,7 +70,16 @@ fn generate_keys_and_genesis(
     force: bool,
 ) -> Result<()> {
     let num_nodes = manifest.num_nodes();
-    let dummy_node = StarknetNode::new(testnet_dir.to_path_buf(), ConfigSource::Default, None);
+
+    // Create a dummy App instance for key/genesis generation.
+    let dummy_node = App {
+        home_dir: testnet_dir.to_path_buf(),
+        config: Config::default(),
+        validator_set: ValidatorSet::new(std::iter::empty()),
+        private_key: PrivateKey::generate(rand::thread_rng()),
+        start_height: Some(Height::new(1)),
+        middleware: None,
+    };
 
     // Generate deterministic private keys
     let private_keys =
@@ -152,19 +163,12 @@ fn generate_configs(
                 .collect()
         };
 
-        let mempool_peers: Vec<_> = nodes_metadata
-            .values()
-            .iter()
-            .filter(|m| m.name != *name)
-            .map(|m| transport.multiaddr(&m.ip, MEMPOOL_PORT as usize))
-            .collect();
-
         // Build base config
-        let mut config = Config {
+        let config = Config {
             moniker: name.clone(),
             consensus: ConsensusConfig {
                 enabled: true,
-                value_payload: ValuePayload::PartsOnly,
+                value_payload: ValuePayload::ProposalAndParts,
                 queue_capacity: 100,
                 p2p: P2pConfig {
                     protocol: PubSubProtocol::default(),
@@ -177,21 +181,6 @@ fn generate_configs(
                     ..Default::default()
                 },
             },
-            mempool: MempoolConfig {
-                p2p: P2pConfig {
-                    protocol: PubSubProtocol::default(),
-                    listen_addr: transport.multiaddr("0.0.0.0", MEMPOOL_PORT as usize),
-                    persistent_peers: mempool_peers,
-                    discovery: DiscoveryConfig {
-                        enabled: false,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                max_tx_count: 10000,
-                gossip_batch_size: 0,
-                ..Default::default()
-            },
             metrics: MetricsConfig {
                 enabled: true,
                 listen_addr: format!("0.0.0.0:{METRICS_PORT}").parse().unwrap(),
@@ -202,21 +191,25 @@ fn generate_configs(
             test: TestConfig::default(),
         };
 
-        // Apply per-node config overrides from the manifest
+        // Ensure parent directory exists
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Apply per-node config overrides from the manifest.
+        // We write the merged toml::Value directly to preserve any extra
+        // sections (e.g. [byzantine]) that are not part of the base Config struct.
         if !manifest_node.config.is_empty() {
             let base_toml = toml::to_string(&config)?;
             let mut base_value: toml::Value = toml::from_str(&base_toml)?;
             let override_value = toml::Value::Table(manifest_node.config.clone());
             merge_toml_value(&mut base_value, &override_value);
-            config = toml::from_str(&toml::to_string(&base_value)?)?;
+            let toml_str = toml::to_string_pretty(&base_value)?;
+            fs::write(&config_path, toml_str)?;
+        } else {
+            let toml_str = toml::to_string_pretty(&config)?;
+            fs::write(&config_path, toml_str)?;
         }
-
-        // Ensure parent directory exists
-        if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let toml_str = toml::to_string_pretty(&config)?;
-        fs::write(&config_path, toml_str)?;
         debug!("Generated config for {name}");
     }
 
