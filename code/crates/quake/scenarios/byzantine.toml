@@ -1,0 +1,30 @@
+# Byzantine testnet scenario
+#
+# Uses the test app binary (not starknet) since Byzantine behavior
+# is implemented in the test app's engine builder.
+#
+# 5-validator testnet:
+#   - validator1, validator2: honest nodes
+#   - validator3: randomly equivocates votes 30% of the time (seeded for reproducibility)
+#   - validator4: drops votes for heights 10-50 (silence attack)
+#   - validator5: always equivocates proposals and ignores voting locks (amnesia attack)
+
+[nodes.validator1]
+# Honest node
+
+[nodes.validator2]
+# Honest node
+
+[nodes.validator3]
+# Random vote equivocation with a fixed seed for reproducibility
+config.byzantine.equivocate_votes = { mode = "random", probability = 0.3 }
+config.byzantine.seed = 12345
+
+[nodes.validator4]
+# Silent on votes for heights 10-50
+config.byzantine.drop_votes = { mode = "height_range", from = 10, to = 50 }
+
+[nodes.validator5]
+# Always equivocate proposals and ignore voting locks
+config.byzantine.equivocate_proposals = { mode = "always" }
+config.byzantine.ignore_locks = true

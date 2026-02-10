@@ -2785,11 +2785,13 @@ version = "0.7.0-pre"
 dependencies = [
  "async-trait",
  "bytes",
+ "clap",
  "color-eyre",
  "config",
  "derive-where",
  "eyre",
  "informalsystems-malachitebft-app-channel",
+ "informalsystems-malachitebft-engine-byzantine",
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
@@ -2802,9 +2804,12 @@ dependencies = [
  "serde_json",
  "sha3",
  "thiserror 2.0.16",
+ "tikv-jemallocator",
  "tokio",
  "toml",
  "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

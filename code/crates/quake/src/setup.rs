@@ -72,11 +72,15 @@ fn generate_keys_and_genesis(
     let num_nodes = manifest.num_nodes();
 
     // Create a dummy App instance for key/genesis generation.
+    // The validator_set and private_key are placeholders; only the trait
+    // methods (generate_private_key, get_public_key, make_genesis, etc.) matter.
+    let dummy_pk = PrivateKey::generate(rand::thread_rng());
+    let dummy_validator = malachitebft_test::Validator::new(dummy_pk.public_key(), 1);
     let dummy_node = App {
         home_dir: testnet_dir.to_path_buf(),
         config: Config::default(),
-        validator_set: ValidatorSet::new(std::iter::empty()),
-        private_key: PrivateKey::generate(rand::thread_rng()),
+        validator_set: ValidatorSet::new(vec![dummy_validator]),
+        private_key: dummy_pk,
         start_height: Some(Height::new(1)),
         middleware: None,
     };
@@ -189,6 +193,7 @@ fn generate_configs(
             value_sync: ValueSyncConfig::default(),
             logging: LoggingConfig::default(),
             test: TestConfig::default(),
+            byzantine: None,
         };
 
         // Ensure parent directory exists

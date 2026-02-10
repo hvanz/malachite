@@ -191,6 +191,7 @@ impl TestRunner {
             },
             runtime: RuntimeConfig::single_threaded(),
             test: TestConfig::default(),
+            byzantine: None,
         }
     }
 }
