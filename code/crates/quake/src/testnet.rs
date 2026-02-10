@@ -108,7 +108,11 @@ impl Testnet {
 
     /// Build the testnet Docker image.
     pub fn build(&self) -> Result<()> {
-        build::build_image(&self.root_dir, &self.quake_dir, &self.manifest.image)
+        build::build_image(
+            &self.root_dir,
+            &self.quake_dir,
+            &self.manifest.image,
+        )
     }
 
     /// Start the testnet or a subset of nodes.
