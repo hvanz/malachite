@@ -2459,6 +2459,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "informalsystems-malachitebft-engine-byzantine"
+version = "0.7.0-pre"
+dependencies = [
+ "async-trait",
+ "eyre",
+ "informalsystems-malachitebft-core-consensus",
+ "informalsystems-malachitebft-core-types",
+ "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-signing",
+ "informalsystems-malachitebft-test",
+ "ractor",
+ "rand 0.8.5",
+ "serde",
+ "toml",
+ "tracing",
+]
+
+[[package]]
 name = "informalsystems-malachitebft-example-channel"
 version = "0.7.0-pre"
 dependencies = [

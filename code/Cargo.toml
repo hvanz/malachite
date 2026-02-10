@@ -12,6 +12,7 @@ members = [
   "crates/core-types",
   "crates/core-votekeeper",
   "crates/engine",
+  "crates/engine-byzantine",
   "crates/metrics",
   "crates/network",
   "crates/peer",
@@ -76,6 +77,7 @@ doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 malachitebft-engine             = { version = "0.7.0-pre", package = "informalsystems-malachitebft-engine", path = "crates/engine" }
+malachitebft-engine-byzantine   = { version = "0.7.0-pre", package = "informalsystems-malachitebft-engine-byzantine", path = "crates/engine-byzantine" }
 malachitebft-app                = { version = "0.7.0-pre", package = "informalsystems-malachitebft-app", path = "crates/app" }
 malachitebft-app-channel        = { version = "0.7.0-pre", package = "informalsystems-malachitebft-app-channel", path = "crates/app-channel" }
 malachitebft-codec              = { version = "0.7.0-pre", package = "informalsystems-malachitebft-codec", path = "crates/codec" }
