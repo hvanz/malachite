@@ -17,5 +17,5 @@ pub mod proxy;
 pub mod strategy;
 
 pub use middleware::ByzantineMiddleware;
-pub use proxy::ByzantineNetworkProxy;
+pub use proxy::{ByzantineNetworkProxy, ConflictingValueFn};
 pub use strategy::{ByzantineConfig, Trigger};
