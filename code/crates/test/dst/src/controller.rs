@@ -103,12 +103,7 @@ impl<Ctx: Context> SimulationController<Ctx> {
     }
 
     /// Enqueue a directed event from source to a specific destination.
-    pub fn enqueue_directed(
-        &mut self,
-        source: NodeId,
-        dest: NodeId,
-        event: NetworkEvent<Ctx>,
-    ) {
+    pub fn enqueue_directed(&mut self, source: NodeId, dest: NodeId, event: NetworkEvent<Ctx>) {
         let delivery_tick = self.compute_delivery_tick(source);
         let sequence = self.next_sequence();
 

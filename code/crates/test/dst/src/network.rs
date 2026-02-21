@@ -8,7 +8,7 @@ use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::Context;
 use malachitebft_engine::network::{Msg as NetworkMsg, NetworkEvent, NetworkRef};
 use malachitebft_engine::util::output_port::OutputPort;
-use malachitebft_network::PeerId;
+use malachitebft_network::{Multiaddr, PeerId};
 use malachitebft_test_framework::NodeId;
 
 use crate::controller::SimulationController;
@@ -36,7 +36,9 @@ pub struct SimulatedNetwork<Ctx: Context> {
     output_port: Arc<OutputPort<NetworkEvent<Ctx>>>,
 }
 
-pub struct SimulatedNetworkState;
+pub struct SimulatedNetworkState {
+    subscribers_count: usize,
+}
 
 impl<Ctx: Context> SimulatedNetwork<Ctx> {
     pub async fn spawn(
@@ -59,8 +61,7 @@ impl<Ctx: Context> SimulatedNetwork<Ctx> {
             output_port: Arc::clone(&output_port),
         };
 
-        let (actor_ref, _) =
-            Actor::spawn(Some(format!("sim-net-{node_id}")), actor, ()).await?;
+        let (actor_ref, _) = Actor::spawn(Some(format!("sim-net-{node_id}")), actor, ()).await?;
 
         // Create the mpsc channel that EngineBuilder needs as tx_network.
         // Messages sent on this channel are forwarded to the actor.
@@ -92,14 +93,16 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
         _myself: ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(SimulatedNetworkState)
+        Ok(SimulatedNetworkState {
+            subscribers_count: 0,
+        })
     }
 
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
         msg: Self::Msg,
-        _state: &mut Self::State,
+        state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             // Local subscriber registration — when Consensus or Sync actors subscribe
@@ -107,15 +110,25 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
             NetworkMsg::Subscribe(subscriber) => {
                 trace!(node = self.node_id, "Registering network subscriber");
                 subscriber.subscribe_to_port(&self.output_port);
+                state.subscribers_count += 1;
+
+                // After the first subscriber registers (the consensus actor),
+                // emit Listening to trigger ConsensusReady flow.
+                if state.subscribers_count == 1 {
+                    let fake_addr: Multiaddr =
+                        format!("/ip4/127.0.0.1/tcp/{}", 40000 + self.node_id)
+                            .parse()
+                            .unwrap();
+
+                    self.output_port.send(NetworkEvent::Listening(fake_addr));
+                }
             }
 
             // Outbound: consensus message to broadcast
             NetworkMsg::PublishConsensusMsg(signed_msg) => {
                 trace!(node = self.node_id, "Publishing consensus message");
                 let event = match signed_msg {
-                    SignedConsensusMsg::Vote(vote) => {
-                        NetworkEvent::Vote(self.peer_id, vote)
-                    }
+                    SignedConsensusMsg::Vote(vote) => NetworkEvent::Vote(self.peer_id, vote),
                     SignedConsensusMsg::Proposal(proposal) => {
                         NetworkEvent::Proposal(self.peer_id, proposal)
                     }
@@ -128,9 +141,7 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
             NetworkMsg::PublishLivenessMsg(liveness_msg) => {
                 trace!(node = self.node_id, "Publishing liveness message");
                 let event = match liveness_msg {
-                    LivenessMsg::Vote(vote) => {
-                        NetworkEvent::Vote(self.peer_id, vote)
-                    }
+                    LivenessMsg::Vote(vote) => NetworkEvent::Vote(self.peer_id, vote),
                     LivenessMsg::PolkaCertificate(cert) => {
                         NetworkEvent::PolkaCertificate(self.peer_id, cert)
                     }
@@ -160,8 +171,6 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
 
             // Outbound: sync request to specific peer
             NetworkMsg::OutgoingRequest(_peer_id, _request, reply) => {
-                // For now, generate a request ID and acknowledge.
-                // Full sync routing will be added later.
                 let request_id = malachitebft_sync::OutboundRequestId::new(format!(
                     "sim-{}-{}",
                     self.node_id,
@@ -171,11 +180,8 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
             }
 
             // Outbound: sync response
-            NetworkMsg::OutgoingResponse(_request_id, _response) => {
-                // Sync response routing will be added later.
-            }
+            NetworkMsg::OutgoingResponse(_request_id, _response) => {}
 
-            // Local operations that don't need simulation routing
             NetworkMsg::DumpState(reply) => {
                 let _ = reply.send(None);
             }
@@ -184,12 +190,8 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
                 let _ = reply.send(Ok(()));
             }
 
-            NetworkMsg::UpdateValidatorSet(_vs) => {
-                // No-op in simulation
-            }
+            NetworkMsg::UpdateValidatorSet(_vs) => {}
 
-            // Inbound raw network event — not used in simulation since
-            // we deliver typed NetworkEvents directly via the output port.
             NetworkMsg::NewEvent(_event) => {}
         }
 

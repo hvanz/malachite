@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -47,6 +48,7 @@ pub struct SimulatedNodeRunner {
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
     pub metrics_base_port: usize,
+    tick_loop_started: Arc<AtomicBool>,
 }
 
 fn temp_dir(id: NodeId) -> PathBuf {
@@ -147,6 +149,7 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
             consensus_base_port: base_port,
             mempool_base_port: base_port + 100,
             metrics_base_port: base_port + 200,
+            tick_loop_started: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -181,8 +184,7 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
         };
 
         // Spawn simulated WAL
-        let wal_ref =
-            SimulatedWal::spawn(id, Arc::clone(&node_info.wal_store)).await?;
+        let wal_ref = SimulatedWal::spawn(id, Arc::clone(&node_info.wal_store)).await?;
 
         // Generate a deterministic PeerId for this node
         let peer_id = PeerId::random();
@@ -215,11 +217,19 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
             });
         }
 
+        // Start the tick loop (once, on first spawn)
+        if !self.tick_loop_started.swap(true, Ordering::SeqCst) {
+            SimulationController::spawn_tick_loop(Arc::clone(&self.controller));
+        }
+
         // Build engine with custom network and custom WAL
         let builder = EngineBuilder::new(ctx.clone(), config.clone())
             .with_custom_wal(wal_ref)
             .with_custom_network(net_handle.actor_ref.clone(), tx_app_network)
-            .with_default_consensus(ConsensusContext::new(address, Ed25519Provider::new(private_key.clone())))
+            .with_default_consensus(ConsensusContext::new(
+                address,
+                Ed25519Provider::new(private_key.clone()),
+            ))
             .with_default_sync(SyncContext::new(JsonCodec))
             .with_default_request(RequestContext::new(100));
 
