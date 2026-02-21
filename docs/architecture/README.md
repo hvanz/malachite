@@ -34,3 +34,4 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | [005](./adr-005-value-sync.md)              | Value Sync Protocol                         | Accepted |
 | [006](./adr-006-proof-of-validator.md)      | Proof-of-Validator Protocol                 | Accepted |
 | [007](./adr-007-write-ahead-log.md)         | Consensus Write-Ahead Log (WAL)             | Accepted |
+| [008](./adr-008-deterministic-simulation-testing.md) | Deterministic Simulation Testing    | Proposed |
