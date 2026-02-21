@@ -2839,6 +2839,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "informalsystems-malachitebft-test-dst"
+version = "0.7.0-pre"
+dependencies = [
+ "async-trait",
+ "eyre",
+ "informalsystems-malachitebft-app-channel",
+ "informalsystems-malachitebft-config",
+ "informalsystems-malachitebft-core-consensus",
+ "informalsystems-malachitebft-core-types",
+ "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-metrics",
+ "informalsystems-malachitebft-network",
+ "informalsystems-malachitebft-peer",
+ "informalsystems-malachitebft-signing",
+ "informalsystems-malachitebft-signing-ed25519",
+ "informalsystems-malachitebft-sync",
+ "informalsystems-malachitebft-test",
+ "informalsystems-malachitebft-test-app",
+ "informalsystems-malachitebft-test-framework",
+ "ractor",
+ "rand 0.8.5",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "informalsystems-malachitebft-test-framework"
 version = "0.7.0-pre"
 dependencies = [

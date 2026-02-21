@@ -1,0 +1,37 @@
+[package]
+name = "informalsystems-malachitebft-test-dst"
+description = "Deterministic Simulation Testing for Malachite BFT"
+publish = false
+
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+malachitebft-app-channel.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-config.workspace = true
+malachitebft-metrics.workspace = true
+malachitebft-sync.workspace = true
+malachitebft-peer.workspace = true
+malachitebft-network.workspace = true
+malachitebft-signing.workspace = true
+malachitebft-signing-ed25519.workspace = true
+malachitebft-test.workspace = true
+malachitebft-test-app.workspace = true
+malachitebft-test-framework.workspace = true
+
+async-trait.workspace = true
+eyre.workspace = true
+ractor.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tracing.workspace = true

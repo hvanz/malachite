@@ -32,6 +32,7 @@ members = [
   "crates/test/mbt",
   "crates/test/mempool",
   "crates/test/framework",
+  "crates/test/dst",
   "crates/network/test",
 
   # Starknet
@@ -104,6 +105,7 @@ malachitebft-test-cli               = { version = "0.7.0-pre", package = "inform
 malachitebft-test-mbt               = { version = "0.7.0-pre", package = "informalsystems-malachitebft-test-mbt", path = "crates/test/mbt" }
 malachitebft-test-mempool           = { version = "0.7.0-pre", package = "informalsystems-malachitebft-test-mempool", path = "crates/test/mempool" }
 malachitebft-test-framework         = { version = "0.7.0-pre", package = "informalsystems-malachitebft-test-framework", path = "crates/test/framework" }
+malachitebft-test-dst               = { version = "0.7.0-pre", package = "informalsystems-malachitebft-test-dst", path = "crates/test/dst" }
 malachitebft-discovery-test         = { version = "0.7.0-pre", package = "informalsystems-malachitebft-discovery-test", path = "crates/network/test" }
 
 # Starknet
