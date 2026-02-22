@@ -71,10 +71,9 @@ impl SimulatedNodeRunner {
         let (validators, private_keys) = make_validators(nodes, &params);
         let validator_set = ValidatorSet::new(validators);
 
-        let controller = Arc::new(Mutex::new(SimulationController::new(
-            sim_config.seed,
-            sim_config.tick_duration,
-        )));
+        let mut ctrl = SimulationController::new(sim_config.seed, sim_config.tick_duration);
+        ctrl.faults = sim_config.faults;
+        let controller = Arc::new(Mutex::new(ctrl));
 
         let nodes_info = nodes
             .iter()
