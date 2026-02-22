@@ -9,9 +9,10 @@ use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
+use informalsystems_malachitebft_test_dst::fault::SimConfig;
 use informalsystems_malachitebft_test_dst::runner::SimulatedNodeRunner;
 use malachitebft_test::TestContext;
-use malachitebft_test_framework::{run_node, NodeRunner, TestBuilder, TestNode, TestParams};
+use malachitebft_test_framework::{run_node, TestBuilder, TestNode, TestParams};
 
 type DstTestBuilder = TestBuilder<TestContext, ()>;
 
@@ -134,7 +135,7 @@ fn build_test_nodes() -> Vec<TestNode<TestContext, ()>> {
 ///
 /// Each call creates a fresh tokio runtime so that no state leaks between runs.
 /// Returns the consensus-relevant normalized log lines.
-fn run_simulation(run_id: usize) -> Vec<String> {
+fn run_simulation(run_id: usize, seed: u64) -> Vec<String> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -153,15 +154,13 @@ fn run_simulation(run_id: usize) -> Vec<String> {
         )
         .unwrap();
 
-    let subscriber = tracing_subscriber::registry()
-        .with(filter)
-        .with(
-            fmt::layer()
-                .with_writer(buffer.clone())
-                .with_ansi(false)
-                .with_thread_ids(false)
-                .with_target(true),
-        );
+    let subscriber = tracing_subscriber::registry().with(filter).with(
+        fmt::layer()
+            .with_writer(buffer.clone())
+            .with_ansi(false)
+            .with_thread_ids(false)
+            .with_target(true),
+    );
 
     let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -169,7 +168,8 @@ fn run_simulation(run_id: usize) -> Vec<String> {
         let nodes = build_test_nodes();
         let params = TestParams::default();
 
-        let runner = SimulatedNodeRunner::new(run_id, &nodes, params);
+        let sim_config = SimConfig::new().with_seed(seed);
+        let runner = SimulatedNodeRunner::with_config(run_id, &nodes, params, sim_config);
         let span = error_span!("test", id = run_id);
 
         let mut set = JoinSet::new();
@@ -205,35 +205,49 @@ fn run_simulation(run_id: usize) -> Vec<String> {
     extract_consensus_logs(&buffer.into_string())
 }
 
+/// Assert that two log vectors are identical, with a helpful diff on failure.
+fn assert_logs_equal(run_a: &[String], run_b: &[String], seed: u64) {
+    if run_a == run_b {
+        return;
+    }
+    let max_len = run_a.len().max(run_b.len());
+    for i in 0..max_len {
+        let a = run_a.get(i).map(String::as_str).unwrap_or("<missing>");
+        let b = run_b.get(i).map(String::as_str).unwrap_or("<missing>");
+        if a != b {
+            panic!(
+                "Consensus logs diverge at line {i} for seed {seed}:\n\
+                 \n  run_a[{i}]: {a}\
+                 \n  run_b[{i}]: {b}\
+                 \n\n  Total consensus lines: run_a={}, run_b={}",
+                run_a.len(),
+                run_b.len(),
+            );
+        }
+    }
+}
+
 /// Verify that two simulation runs with the same seed produce identical
-/// consensus state transitions: same proposals, votes, and decisions
-/// at each height and round.
+/// consensus state transitions across 50 random seeds.
 #[test]
 fn simulation_is_deterministic() {
-    let run_a = run_simulation(1);
-    let run_b = run_simulation(1);
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
 
-    assert!(
-        !run_a.is_empty(),
-        "Expected non-empty consensus log output from simulation"
-    );
+    const NUM_SEEDS: usize = 50;
 
-    if run_a != run_b {
-        // Find the first divergence for a helpful error message.
-        let max_len = run_a.len().max(run_b.len());
-        for i in 0..max_len {
-            let a = run_a.get(i).map(String::as_str).unwrap_or("<missing>");
-            let b = run_b.get(i).map(String::as_str).unwrap_or("<missing>");
-            if a != b {
-                panic!(
-                    "Consensus logs diverge at line {i} (0-indexed):\n\
-                     \n  run_a[{i}]: {a}\
-                     \n  run_b[{i}]: {b}\
-                     \n\n  Total consensus lines: run_a={}, run_b={}",
-                    run_a.len(),
-                    run_b.len(),
-                );
-            }
-        }
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
+
+    for i in 0..NUM_SEEDS {
+        let seed: u64 = rng.gen();
+        let run_a = run_simulation(1, seed);
+        let run_b = run_simulation(1, seed);
+
+        assert!(
+            !run_a.is_empty(),
+            "Expected non-empty consensus log output for seed {seed} (iteration {i})"
+        );
+
+        assert_logs_equal(&run_a, &run_b, seed);
     }
 }

@@ -59,6 +59,54 @@ fn temp_dir(id: NodeId) -> PathBuf {
 }
 
 impl SimulatedNodeRunner {
+    /// Create a runner with an explicit simulation config (seed, tick duration, faults).
+    pub fn with_config<S>(
+        id: usize,
+        nodes: &[TestNode<TestContext, S>],
+        params: TestParams,
+        sim_config: SimConfig,
+    ) -> Self {
+        let base_port = 30_000 + id * 1000;
+
+        let (validators, private_keys) = make_validators(nodes, &params);
+        let validator_set = ValidatorSet::new(validators);
+
+        let controller = Arc::new(Mutex::new(SimulationController::new(
+            sim_config.seed,
+            sim_config.tick_duration,
+        )));
+
+        let nodes_info = nodes
+            .iter()
+            .map(|node| {
+                (
+                    node.id,
+                    Arc::new(SimNodeInfo {
+                        start_height: node.start_height,
+                        home_dir: temp_dir(node.id),
+                        middleware: Arc::clone(&node.middleware),
+                        config_modifier: Arc::clone(&node.config_modifier),
+                        wal_store: Arc::new(Mutex::new(SimulatedWalStore::new())),
+                    }),
+                )
+            })
+            .collect();
+
+        Self {
+            id,
+            seed: sim_config.seed,
+            params,
+            nodes_info,
+            private_keys,
+            validator_set,
+            controller,
+            consensus_base_port: base_port,
+            mempool_base_port: base_port + 100,
+            metrics_base_port: base_port + 200,
+            tick_loop_started: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
     fn generate_config(&self, node: NodeId) -> Config {
         let mut config = self.generate_default_config(node);
         self.params.apply_to_config(&mut config);
@@ -113,46 +161,7 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
     type NodeHandle = Handle;
 
     fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
-        let base_port = 30_000 + id * 1000;
-
-        let (validators, private_keys) = make_validators(nodes, &params);
-        let validator_set = ValidatorSet::new(validators);
-
-        let sim_config = SimConfig::default();
-        let controller = Arc::new(Mutex::new(SimulationController::new(
-            sim_config.seed,
-            sim_config.tick_duration,
-        )));
-
-        let nodes_info = nodes
-            .iter()
-            .map(|node| {
-                (
-                    node.id,
-                    Arc::new(SimNodeInfo {
-                        start_height: node.start_height,
-                        home_dir: temp_dir(node.id),
-                        middleware: Arc::clone(&node.middleware),
-                        config_modifier: Arc::clone(&node.config_modifier),
-                        wal_store: Arc::new(Mutex::new(SimulatedWalStore::new())),
-                    }),
-                )
-            })
-            .collect();
-
-        Self {
-            id,
-            seed: sim_config.seed,
-            params,
-            nodes_info,
-            private_keys,
-            validator_set,
-            controller,
-            consensus_base_port: base_port,
-            mempool_base_port: base_port + 100,
-            metrics_base_port: base_port + 200,
-            tick_loop_started: Arc::new(AtomicBool::new(false)),
-        }
+        Self::with_config(id, nodes, params, SimConfig::default())
     }
 
     async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {
