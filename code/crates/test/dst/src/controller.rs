@@ -171,6 +171,27 @@ impl<Ctx: Context> SimulationController<Ctx> {
         false
     }
 
+    fn should_duplicate(&mut self, source: NodeId) -> bool {
+        for fault in &self.faults {
+            if let FaultScenario::Duplicate {
+                node,
+                duplication_probability,
+                start_tick,
+                duration_ticks,
+            } = fault
+            {
+                if *node == source
+                    && self.current_tick >= *start_tick
+                    && self.current_tick < start_tick + duration_ticks
+                    && self.rng.gen_bool(*duplication_probability)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     pub fn next_message_tick(&self) -> Option<u64> {
         self.message_queue.peek().map(|m| m.delivery_tick)
     }
@@ -199,6 +220,10 @@ impl<Ctx: Context> SimulationController<Ctx> {
                     for dest in dest_ids {
                         if !self.is_blocked(scheduled.source, dest) {
                             deliveries.push((dest, scheduled.event.clone()));
+                            if self.should_duplicate(scheduled.source) {
+                                debug!(source = scheduled.source, %dest, "Duplicated message (fault)");
+                                deliveries.push((dest, scheduled.event.clone()));
+                            }
                         } else {
                             debug!(source = scheduled.source, %dest, "Dropped message (fault)");
                         }
@@ -206,7 +231,12 @@ impl<Ctx: Context> SimulationController<Ctx> {
                 }
                 Some(dest) => {
                     if !self.is_blocked(scheduled.source, dest) {
-                        deliveries.push((dest, scheduled.event));
+                        let dup = self.should_duplicate(scheduled.source);
+                        deliveries.push((dest, scheduled.event.clone()));
+                        if dup {
+                            debug!(source = scheduled.source, %dest, "Duplicated directed message (fault)");
+                            deliveries.push((dest, scheduled.event));
+                        }
                     } else {
                         debug!(source = scheduled.source, %dest, "Dropped directed message (fault)");
                     }
@@ -274,6 +304,7 @@ impl<Ctx: Context> SimulationController<Ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fault::FaultScenario;
     use malachitebft_test::TestContext;
 
     #[test]
@@ -288,5 +319,19 @@ mod tests {
     fn next_message_tick_empty() {
         let ctrl = SimulationController::<TestContext>::new(0, Duration::from_millis(10));
         assert_eq!(ctrl.next_message_tick(), None);
+    }
+
+    #[test]
+    fn duplicate_fault_doubles_deliveries() {
+        let mut ctrl = SimulationController::<TestContext>::new(42, Duration::from_millis(10));
+        ctrl.faults.push(FaultScenario::Duplicate {
+            node: 1,
+            duplication_probability: 1.0,
+            start_tick: 0,
+            duration_ticks: 100,
+        });
+
+        assert!(ctrl.should_duplicate(1));
+        assert!(!ctrl.should_duplicate(2));
     }
 }
