@@ -73,9 +73,8 @@ impl SimulatedNodeRunner {
 
         let mut ctrl = SimulationController::new(sim_config.seed, sim_config.tick_duration);
         ctrl.faults = sim_config.faults;
-        let controller = Arc::new(Mutex::new(ctrl));
 
-        let nodes_info = nodes
+        let nodes_info: HashMap<NodeId, Arc<SimNodeInfo>> = nodes
             .iter()
             .map(|node| {
                 (
@@ -90,6 +89,14 @@ impl SimulatedNodeRunner {
                 )
             })
             .collect();
+
+        let wal_stores: HashMap<NodeId, Arc<Mutex<SimulatedWalStore<TestContext>>>> = nodes_info
+            .iter()
+            .map(|(id, info)| (*id, Arc::clone(&info.wal_store)))
+            .collect();
+        ctrl.set_wal_stores(wal_stores);
+
+        let controller = Arc::new(Mutex::new(ctrl));
 
         Self {
             id,

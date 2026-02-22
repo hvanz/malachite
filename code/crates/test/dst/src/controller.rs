@@ -62,6 +62,7 @@ pub struct SimulationController<Ctx: Context> {
     pub current_tick: u64,
     pub tick_duration: Duration,
     sequence_counter: u64,
+    wal_stores: HashMap<NodeId, Arc<Mutex<crate::wal::SimulatedWalStore<Ctx>>>>,
 }
 
 impl<Ctx: Context> SimulationController<Ctx> {
@@ -75,11 +76,19 @@ impl<Ctx: Context> SimulationController<Ctx> {
             current_tick: 0,
             tick_duration,
             sequence_counter: 0,
+            wal_stores: HashMap::new(),
         }
     }
 
     pub fn register_node(&mut self, id: NodeId, handle: SimulatedNetworkHandle<Ctx>) {
         self.nodes.insert(id, SimNodeEntry { handle });
+    }
+
+    pub fn set_wal_stores(
+        &mut self,
+        stores: HashMap<NodeId, Arc<Mutex<crate::wal::SimulatedWalStore<Ctx>>>>,
+    ) {
+        self.wal_stores = stores;
     }
 
     /// Enqueue a broadcast event from a source node to all other nodes.
@@ -251,6 +260,34 @@ impl<Ctx: Context> SimulationController<Ctx> {
         self.current_tick += 1;
     }
 
+    /// Toggle WAL `fail_writes` flags based on active WalFailure faults.
+    pub fn apply_wal_faults(&self) {
+        for (node_id, store) in &self.wal_stores {
+            let should_fail = self.faults.iter().any(|f| {
+                matches!(
+                    f,
+                    FaultScenario::WalFailure {
+                        node,
+                        start_tick,
+                        duration_ticks,
+                    } if *node == *node_id
+                        && self.current_tick >= *start_tick
+                        && self.current_tick < start_tick + duration_ticks
+                )
+            });
+            let mut s = store.lock().unwrap();
+            if s.fail_writes != should_fail {
+                tracing::debug!(
+                    node = *node_id,
+                    fail = should_fail,
+                    tick = self.current_tick,
+                    "WAL fault toggle"
+                );
+            }
+            s.fail_writes = should_fail;
+        }
+    }
+
     pub fn has_pending_messages(&self) -> bool {
         !self.message_queue.is_empty()
     }
@@ -281,6 +318,7 @@ impl<Ctx: Context> SimulationController<Ctx> {
                 let deliveries = {
                     let mut ctrl = controller.lock().unwrap();
                     ctrl.advance_tick();
+                    ctrl.apply_wal_faults();
                     ctrl.drain_current_tick()
                 };
 
