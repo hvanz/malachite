@@ -38,6 +38,7 @@ pub struct SimulatedNetwork<Ctx: Context> {
 
 pub struct SimulatedNetworkState {
     subscribers_count: usize,
+    request_counter: u64,
 }
 
 impl<Ctx: Context> SimulatedNetwork<Ctx> {
@@ -61,7 +62,7 @@ impl<Ctx: Context> SimulatedNetwork<Ctx> {
             output_port: Arc::clone(&output_port),
         };
 
-        let (actor_ref, _) = Actor::spawn(Some(format!("sim-net-{node_id}")), actor, ()).await?;
+        let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
 
         // Create the mpsc channel that EngineBuilder needs as tx_network.
         // Messages sent on this channel are forwarded to the actor.
@@ -95,6 +96,7 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(SimulatedNetworkState {
             subscribers_count: 0,
+            request_counter: 0,
         })
     }
 
@@ -171,10 +173,10 @@ impl<Ctx: Context> Actor for SimulatedNetwork<Ctx> {
 
             // Outbound: sync request to specific peer
             NetworkMsg::OutgoingRequest(_peer_id, _request, reply) => {
+                state.request_counter += 1;
                 let request_id = malachitebft_sync::OutboundRequestId::new(format!(
                     "sim-{}-{}",
-                    self.node_id,
-                    rand::random::<u32>()
+                    self.node_id, state.request_counter,
                 ));
                 let _ = reply.send(request_id);
             }

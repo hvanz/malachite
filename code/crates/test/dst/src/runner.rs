@@ -40,6 +40,7 @@ pub struct SimNodeInfo {
 #[derive(Clone)]
 pub struct SimulatedNodeRunner {
     pub id: usize,
+    pub seed: u64,
     pub params: TestParams,
     pub nodes_info: HashMap<NodeId, Arc<SimNodeInfo>>,
     pub private_keys: HashMap<NodeId, PrivateKey>,
@@ -141,6 +142,7 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
 
         Self {
             id,
+            seed: sim_config.seed,
             params,
             nodes_info,
             private_keys,
@@ -186,8 +188,17 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
         // Spawn simulated WAL
         let wal_ref = SimulatedWal::spawn(id, Arc::clone(&node_info.wal_store)).await?;
 
-        // Generate a deterministic PeerId for this node
-        let peer_id = PeerId::random();
+        // Generate a deterministic PeerId derived from the node ID.
+        // Build an identity-multihash (code=0x00, len=0x20) with 32 zero-bytes
+        // except for the node ID in the first bytes.
+        let peer_id = {
+            let mut buf = [0u8; 34]; // 1 byte code + 1 byte length + 32 bytes digest
+            buf[0] = 0x00; // identity multihash code (varint)
+            buf[1] = 0x20; // digest length = 32 (varint)
+            buf[2] = id as u8;
+            buf[3] = (id >> 8) as u8;
+            PeerId::from_bytes(&buf).expect("valid identity multihash")
+        };
 
         // Spawn simulated network
         let (net_handle, _tx_engine_network) =
@@ -243,7 +254,11 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
         let store = Store::open(db_path.join("store.db")).await?;
         let start_height = node_info.start_height;
 
-        let mut state = State::new(
+        // Derive a per-node RNG seed from the simulation seed + node ID
+        // so each node proposes different values but is still deterministic.
+        let node_rng = StdRng::seed_from_u64(self.seed.wrapping_add(id as u64));
+
+        let mut state = State::with_rng(
             ctx,
             config,
             genesis,
@@ -252,6 +267,7 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
             store,
             Ed25519Provider::new(private_key),
             Some(middleware),
+            node_rng,
         );
 
         let tx_event = channels.events.clone();

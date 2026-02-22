@@ -56,7 +56,7 @@ impl<Ctx: Context> SimulatedWal<Ctx> {
         store: Arc<Mutex<SimulatedWalStore<Ctx>>>,
     ) -> Result<WalRef<Ctx>, SpawnErr> {
         let actor = Self { node_id, store };
-        let (actor_ref, _) = Actor::spawn(Some(format!("sim-wal-{node_id}")), actor, ()).await?;
+        let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
     }
 }

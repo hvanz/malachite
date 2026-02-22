@@ -101,6 +101,32 @@ impl State {
         signing_provider: Ed25519Provider,
         middleware: Option<Arc<dyn Middleware>>,
     ) -> Self {
+        Self::with_rng(
+            ctx,
+            config,
+            genesis,
+            address,
+            height,
+            store,
+            signing_provider,
+            middleware,
+            StdRng::from_entropy(),
+        )
+    }
+
+    /// Creates a new State instance with an explicit RNG for deterministic testing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_rng(
+        ctx: TestContext,
+        config: Config,
+        genesis: Genesis,
+        address: Address,
+        height: Height,
+        store: Store,
+        signing_provider: Ed25519Provider,
+        middleware: Option<Arc<dyn Middleware>>,
+        rng: StdRng,
+    ) -> Self {
         Self {
             ctx,
             config,
@@ -114,7 +140,7 @@ impl State {
             current_proposer: None,
             current_role: Role::None,
             streams_map: PartStreamsMap::new(),
-            rng: StdRng::from_entropy(),
+            rng,
             peers: HashSet::new(),
         }
     }
