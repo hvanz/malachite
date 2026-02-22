@@ -116,7 +116,19 @@ where
         Ctx: HasTestRunner<R>,
         S: Send + Sync + 'static,
     {
-        run_test::<Ctx::Runner, Ctx, S>(self, timeout, params).await
+        run_test::<Ctx::Runner, Ctx, S>(self, timeout, params, Default::default()).await
+    }
+
+    pub async fn run_with_runner_config<R>(
+        self,
+        timeout: Duration,
+        params: TestParams,
+        runner_config: <Ctx::Runner as NodeRunner<Ctx>>::Config,
+    ) where
+        Ctx: HasTestRunner<R>,
+        S: Send + Sync + 'static,
+    {
+        run_test::<Ctx::Runner, Ctx, S>(self, timeout, params, runner_config).await
     }
 }
 
@@ -153,8 +165,12 @@ pub enum TestResult {
     Failure(String),
 }
 
-pub async fn run_test<R, Ctx, S>(test: Test<Ctx, S>, timeout: Duration, params: TestParams)
-where
+pub async fn run_test<R, Ctx, S>(
+    test: Test<Ctx, S>,
+    timeout: Duration,
+    params: TestParams,
+    runner_config: R::Config,
+) where
     Ctx: Context,
     R: NodeRunner<Ctx>,
     S: Send + Sync + 'static,
@@ -165,7 +181,7 @@ where
 
     let mut set = JoinSet::new();
 
-    let runner = R::new(test.id, &test.nodes, params);
+    let runner = R::new(test.id, &test.nodes, params, runner_config);
 
     for node in test.nodes {
         let runner = runner.clone();
@@ -191,8 +207,14 @@ where
     Ctx: Context,
 {
     type NodeHandle: NodeHandle<Ctx>;
+    type Config: Default + Clone + Send + Sync + 'static;
 
-    fn new<S>(id: usize, nodes: &[TestNode<Ctx, S>], params: TestParams) -> Self;
+    fn new<S>(
+        id: usize,
+        nodes: &[TestNode<Ctx, S>],
+        params: TestParams,
+        config: Self::Config,
+    ) -> Self;
 
     async fn spawn(&self, id: NodeId) -> eyre::Result<Self::NodeHandle>;
     async fn reset_db(&self, id: NodeId) -> eyre::Result<()>;

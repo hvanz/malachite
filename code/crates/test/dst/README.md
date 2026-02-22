@@ -59,6 +59,7 @@ possible to:
 ```rust
 use std::time::Duration;
 use malachitebft_test::TestContext;
+use informalsystems_malachitebft_test_dst::fault::SimConfig;
 use informalsystems_malachitebft_test_dst::runner::SimulatedNodeRunner;
 use malachitebft_test_framework::{TestBuilder, TestParams};
 
@@ -74,6 +75,7 @@ async fn three_nodes_reach_consensus() {
         test.build(),
         Duration::from_secs(60),
         TestParams::default(),
+        SimConfig::default(),
     )
     .await;
 }
@@ -114,9 +116,28 @@ let config = SimConfig::new()
     });
 ```
 
-> **Note:** Fault injection is not yet wired into `SimulatedNodeRunner` via
-> `TestParams`. Currently the runner uses `SimConfig::default()` (no faults).
-> Exposing fault configuration through the test API is planned future work.
+Pass a `SimConfig` to inject faults into a test via `run_test` or `Test::run_with_runner_config`:
+
+```rust
+use informalsystems_malachitebft_test_dst::fault::{FaultScenario, SimConfig};
+
+let config = SimConfig::new()
+    .with_seed(42)
+    .with_fault(FaultScenario::Partition {
+        group_a: vec![1],
+        group_b: vec![2, 3],
+        start_tick: 5,
+        duration_ticks: 20,
+    });
+
+malachitebft_test_framework::run_test::<SimulatedNodeRunner, TestContext, ()>(
+    test.build(),
+    Duration::from_secs(60),
+    TestParams::default(),
+    config,
+)
+.await;
+```
 
 ## Running Tests
 

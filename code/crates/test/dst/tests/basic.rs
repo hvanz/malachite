@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use informalsystems_malachitebft_test_dst::fault::SimConfig;
 use informalsystems_malachitebft_test_dst::runner::SimulatedNodeRunner;
 use malachitebft_test::TestContext;
 use malachitebft_test_framework::{TestBuilder, TestParams};
@@ -26,6 +27,7 @@ async fn three_nodes_reach_consensus() {
         test.build(),
         Duration::from_secs(60),
         TestParams::default(),
+        SimConfig::default(),
     )
     .await;
 }

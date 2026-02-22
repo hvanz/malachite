@@ -159,9 +159,15 @@ impl SimulatedNodeRunner {
 #[async_trait]
 impl NodeRunner<TestContext> for SimulatedNodeRunner {
     type NodeHandle = Handle;
+    type Config = SimConfig;
 
-    fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
-        Self::with_config(id, nodes, params, SimConfig::default())
+    fn new<S>(
+        id: usize,
+        nodes: &[TestNode<TestContext, S>],
+        params: TestParams,
+        config: SimConfig,
+    ) -> Self {
+        Self::with_config(id, nodes, params, config)
     }
 
     async fn spawn(&self, id: NodeId) -> eyre::Result<Handle> {

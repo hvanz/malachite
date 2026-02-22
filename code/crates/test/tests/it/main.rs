@@ -74,8 +74,14 @@ pub struct NodeInfo {
 #[async_trait]
 impl NodeRunner<TestContext> for TestRunner {
     type NodeHandle = Handle;
+    type Config = ();
 
-    fn new<S>(id: usize, nodes: &[TestNode<TestContext, S>], params: TestParams) -> Self {
+    fn new<S>(
+        id: usize,
+        nodes: &[TestNode<TestContext, S>],
+        params: TestParams,
+        _config: (),
+    ) -> Self {
         let base_port = 20_000 + id * 1000;
 
         let (validators, private_keys) = make_validators(nodes, &params);

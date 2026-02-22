@@ -54,8 +54,14 @@ fn temp_dir(id: NodeId) -> PathBuf {
 #[async_trait]
 impl NodeRunner<MockContext> for TestRunner {
     type NodeHandle = Handle;
+    type Config = ();
 
-    fn new<S>(id: usize, nodes: &[TestNode<MockContext, S>], params: TestParams) -> Self {
+    fn new<S>(
+        id: usize,
+        nodes: &[TestNode<MockContext, S>],
+        params: TestParams,
+        _config: (),
+    ) -> Self {
         let nodes_count = nodes.len();
         let base_port = 20_000 + id * 1000;
 
