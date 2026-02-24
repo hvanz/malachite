@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 malachitebft-app-channel.workspace = true
 malachitebft-engine.workspace = true
+malachitebft-engine-byzantine.workspace = true
 malachitebft-core-types.workspace = true
 malachitebft-core-consensus.workspace = true
 malachitebft-config.workspace = true

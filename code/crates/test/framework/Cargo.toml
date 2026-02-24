@@ -11,6 +11,7 @@ rust-version.workspace = true
 [dependencies]
 malachitebft-app.workspace = true
 malachitebft-engine.workspace = true
+malachitebft-engine-byzantine.workspace = true
 malachitebft-core-types.workspace = true
 malachitebft-config.workspace = true
 malachitebft-core-consensus.workspace = true

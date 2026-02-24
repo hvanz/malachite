@@ -10,6 +10,7 @@ use malachitebft_core_types::{
     CommitCertificate, Context, Height, SignedVote, Vote, VoteType, VotingPower,
 };
 use malachitebft_engine::util::events::Event;
+use malachitebft_engine_byzantine::ByzantineConfig;
 use malachitebft_test::middleware::{DefaultMiddleware, Middleware};
 use malachitebft_test_app::config::Config as TestConfig;
 
@@ -383,6 +384,17 @@ where
 
         self.add_config_modifier(|config| {
             config.consensus_mut().enabled = false;
+        })
+    }
+}
+
+impl<Ctx, State> TestNode<Ctx, State, TestConfig>
+where
+    Ctx: Context,
+{
+    pub fn byzantine(&mut self, config: ByzantineConfig) -> &mut Self {
+        self.add_config_modifier(move |cfg| {
+            cfg.byzantine = Some(config.clone());
         })
     }
 }

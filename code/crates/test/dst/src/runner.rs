@@ -10,6 +10,7 @@ use tempfile::TempDir;
 use tracing::Instrument;
 
 use malachitebft_app_channel::{ConsensusContext, EngineBuilder, RequestContext, SyncContext};
+use malachitebft_engine_byzantine::{ByzantineMiddleware, ByzantineNetworkProxy};
 use malachitebft_network::PeerId;
 use malachitebft_signing_ed25519::PrivateKey;
 use malachitebft_test::codec::json::JsonCodec;
@@ -184,7 +185,21 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
         let span = tracing::error_span!("node", moniker = %config.moniker);
         let _guard = span.enter();
 
-        let middleware: Arc<dyn Middleware> = Arc::clone(&node_info.middleware);
+        let byzantine_cfg = config.byzantine.clone();
+
+        let middleware: Arc<dyn Middleware> = {
+            let inner = Arc::clone(&node_info.middleware);
+            if let Some(ref byz) = byzantine_cfg {
+                if byz.ignore_locks {
+                    tracing::warn!("BYZANTINE: Amnesia attack enabled (ignoring voting locks)");
+                    Arc::new(ByzantineMiddleware::new(true, inner))
+                } else {
+                    inner
+                }
+            } else {
+                inner
+            }
+        };
         let ctx = TestContext::with_middleware(middleware.clone());
 
         let public_key = private_key.public_key();
@@ -254,18 +269,60 @@ impl NodeRunner<TestContext> for SimulatedNodeRunner {
             SimulationController::spawn_tick_loop(Arc::clone(&self.controller));
         }
 
-        // Build engine with custom network and custom WAL
-        let builder = EngineBuilder::new(ctx.clone(), config.clone())
-            .with_custom_wal(wal_ref)
-            .with_custom_network(net_handle.actor_ref.clone(), tx_app_network)
-            .with_default_consensus(ConsensusContext::new(
-                address,
-                Ed25519Provider::new(private_key.clone()),
-            ))
-            .with_default_sync(SyncContext::new(JsonCodec))
-            .with_default_request(RequestContext::new(100));
+        // Build engine with custom network and custom WAL.
+        // When Byzantine behavior is configured, insert a ByzantineNetworkProxy
+        // between the consensus engine and the SimulatedNetwork actor.
+        let is_byzantine = byzantine_cfg.as_ref().is_some_and(|c| c.is_active());
 
-        let (mut channels, engine_handle) = builder.build().await?;
+        let builder = EngineBuilder::new(ctx.clone(), config.clone()).with_custom_wal(wal_ref);
+
+        let (mut channels, engine_handle) = if is_byzantine {
+            let byz_cfg = byzantine_cfg.unwrap();
+
+            tracing::warn!(
+                ?byz_cfg,
+                "BYZANTINE: Starting node with Byzantine behavior enabled"
+            );
+
+            let conflicting_value_fn: Option<
+                malachitebft_engine_byzantine::ConflictingValueFn<TestContext>,
+            > = Some(Box::new(|original: &malachitebft_test::Value| {
+                malachitebft_test::Value::new(original.value.wrapping_add(1))
+            }));
+
+            let proxy_ref = ByzantineNetworkProxy::spawn(
+                byz_cfg,
+                net_handle.actor_ref.clone(),
+                Box::new(Ed25519Provider::new(private_key.clone())),
+                ctx.clone(),
+                address,
+                tracing::error_span!("byzantine-proxy", node = id),
+                conflicting_value_fn,
+            )
+            .await?;
+
+            builder
+                .with_custom_network(proxy_ref, tx_app_network)
+                .with_default_consensus(ConsensusContext::new(
+                    address,
+                    Ed25519Provider::new(private_key.clone()),
+                ))
+                .with_default_sync(SyncContext::new(JsonCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        } else {
+            builder
+                .with_custom_network(net_handle.actor_ref.clone(), tx_app_network)
+                .with_default_consensus(ConsensusContext::new(
+                    address,
+                    Ed25519Provider::new(private_key.clone()),
+                ))
+                .with_default_sync(SyncContext::new(JsonCodec))
+                .with_default_request(RequestContext::new(100))
+                .build()
+                .await?
+        };
 
         drop(_guard);
 

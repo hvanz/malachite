@@ -31,10 +31,17 @@ possible to:
     │              │                  │
     ▼              ▼                  ▼
 ┌───────────┐  ┌──────────────┐  ┌────────────┐
-│ Simulated │  │  Simulated   │  │   Engine   │
-│    WAL    │  │   Network    │  │  (real)    │
-│ (in-mem)  │  │  (actor)     │  │            │
+│ Simulated │  │  Byzantine   │  │   Engine   │
+│    WAL    │  │  Network     │  │  (real)    │
+│ (in-mem)  │  │  Proxy (opt) │  │            │
 └───────────┘  └──────┬───────┘  └────────────┘
+                      │
+                      ▼
+               ┌──────────────┐
+               │  Simulated   │
+               │   Network    │
+               │  (actor)     │
+               └──────┬───────┘
                       │
                       ▼
               ┌───────────────┐
@@ -135,6 +142,64 @@ malachitebft_test_framework::run_test::<SimulatedNodeRunner, TestContext, ()>(
     Duration::from_secs(60),
     TestParams::default(),
     config,
+)
+.await;
+```
+
+## Byzantine Nodes
+
+Individual nodes can be configured to exhibit Byzantine behavior using the `.byzantine()` builder
+method on `TestNode`. When a node has an active `ByzantineConfig`, the runner inserts a
+`ByzantineNetworkProxy` actor between the consensus engine and the simulated network, and
+optionally wraps the node's middleware with `ByzantineMiddleware` for amnesia attacks.
+
+| Behavior | Effect |
+|----------|--------|
+| `equivocate_votes` | Send conflicting votes (value + nil) for the same height/round |
+| `equivocate_proposals` | Send conflicting proposals with different values |
+| `drop_votes` | Suppress outgoing votes (silence attack) |
+| `drop_proposals` | Suppress outgoing proposals |
+| `ignore_locks` | Vote for proposed values even when locked on a different value (amnesia) |
+
+Each behavior is controlled by a `Trigger` that determines when it fires:
+
+| Trigger | Description |
+|---------|-------------|
+| `Always` | Fire on every message |
+| `Random { probability }` | Fire with a given probability (0.0 to 1.0) |
+| `AtHeights { heights }` | Fire at specific heights |
+| `AtRounds { rounds }` | Fire at specific rounds |
+| `HeightRange { from, to }` | Fire within a height range (inclusive) |
+
+Byzantine behaviors can be combined with network-level faults (`FaultScenario`) for compound
+adversarial scenarios.
+
+```rust
+use malachitebft_engine_byzantine::{ByzantineConfig, Trigger};
+
+let mut test = TestBuilder::<TestContext, ()>::new();
+
+// 3 honest nodes
+test.add_node().start().wait_until(3).success();
+test.add_node().start().wait_until(3).success();
+test.add_node().start().wait_until(3).success();
+
+// 1 byzantine node that equivocates votes
+test.add_node()
+    .byzantine(ByzantineConfig {
+        equivocate_votes: Some(Trigger::Always),
+        seed: Some(42),
+        ..Default::default()
+    })
+    .start()
+    .wait_until(3)
+    .success();
+
+malachitebft_test_framework::run_test::<SimulatedNodeRunner, TestContext, ()>(
+    test.build(),
+    Duration::from_secs(60),
+    TestParams::default(),
+    SimConfig::new().with_seed(100),
 )
 .await;
 ```
